@@ -1,0 +1,26 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    volumes:
+      - app_uploads:/app/uploads
+
+  nginx:
+    build:
+      context: ./nginx
+    image: test-dockploy-2-nginx:latest
+    depends_on:
+      app:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - app_uploads:/usr/share/nginx/html/uploads:ro
+    ports:
+      - "3200:80"
+
+volumes:
+  app_uploads:
