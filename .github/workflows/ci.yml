@@ -39,12 +39,12 @@ jobs:
     needs: ci
     runs-on: ubuntu-latest
     if: success()
+    env:
+      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+      DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+      DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
     steps:
       - name: Trigger Dokploy redeploy
-        env:
-          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
         run: |
           echo "URL: $DOKPLOY_URL"
           echo "API_KEY length: ${#DOKPLOY_API_KEY}"
