@@ -41,12 +41,19 @@ jobs:
     if: success()
     steps:
       - name: Trigger Dokploy redeploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
         run: |
+          echo "URL: $DOKPLOY_URL"
+          echo "API_KEY length: ${#DOKPLOY_API_KEY}"
+          echo "COMPOSE_ID: $DOKPLOY_COMPOSE_ID"
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "${{ secrets.DOKPLOY_URL }}/api/compose.deploy" \
-            -H "x-api-key: ${{ secrets.DOKPLOY_API_KEY }}" \
+            "${DOKPLOY_URL}/api/compose.deploy" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
             -H "Content-Type: application/json" \
-            -d '{"composeId":"${{ secrets.DOKPLOY_COMPOSE_ID }}"}')
+            -d "{\"composeId\":\"${DOKPLOY_COMPOSE_ID}\"}")
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | head -n-1)
           echo "HTTP $HTTP_CODE: $BODY"
