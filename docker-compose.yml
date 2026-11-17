@@ -1,54 +1,10 @@
 services:
-  # BLUE version - default production
-  app-blue:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: test_dockploy-2:blue
+    image: test_dockploy-2
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - NEXT_PUBLIC_APP_URL=http://10.117.66.20:3099
-    networks:
-      - app_network
-    profiles:
-      - blue
-
-  # GREEN version - new deployment
-  app-green:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: test_dockploy-2:green
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - NEXT_PUBLIC_APP_URL=http://10.117.66.20:3098
-    networks:
-      - app_network
-    profiles:
-      - green
-
-  # Nginx reverse proxy - switches between blue/green
-  nginx:
-    image: nginx:stable-alpine
-    container_name: test_dockploy-2-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - nginx_logs:/var/log/nginx
-    depends_on:
-      - app-blue
-    networks:
-      - app_network
-
-volumes:
-  nginx_logs:
-
-networks:
-  app_network:
-    driver: bridge

@@ -1,86 +1,38 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## Deployment (Dokploy)
 
-First, run the development server:
+Deployment is handled entirely by **Dokploy** on the server `10.117.66.20` — no GitHub Actions, no self-hosted runner, no manual SSH.
+
+### How it works
+
+1. Push code to the Git repo (private repo, accessed by Dokploy via an SSH deploy key).
+2. Dokploy detects the push (Git webhook / polling) and rebuilds automatically.
+3. Dokploy builds the Docker image from the repo `Dockerfile`, runs the container, and routes traffic through its Traefik proxy (TLS + domain).
+4. Dokploy performs zero-downtime rolling deploys and keeps history for rollback.
+
+### Dokploy setup (one-time)
+
+1. Create a **Docker Compose** service in the Dokploy dashboard.
+2. Point it at this repository using your private-repo **SSH deploy key**.
+3. Set the branch (e.g. `main`).
+4. Assign a **domain** to the `app` service (container port `3000`).
+5. Enable **Auto Deploy**.
+
+That is the entire pipeline — Dokploy does test/build/deploy.
+
+### Build-time checks
+
+The `Dockerfile` runs `npm run lint` before `npm run build`, so a lint failure fails the Dokploy build/deploy.
+
+## Getting Started (local dev)
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Blue/Green Deployment
-
-This project supports blue/green deployment with Docker and Nginx.
-
-### Quick Deployment
-
-```bash
-./deploy-blue-green.sh
-```
-
-### Deployment Details
-
-- Blue Version: `http://10.117.66.20:3099`
-- Green Version: `http://10.117.66.20:3098`
-- Nginx Front-end: `http://10.117.66.20`
-
-### Blue/Green Flow
-
-1. Build Docker image
-2. Deploy to remote server (10.117.66.20)
-3. Start new version in background
-4. Switch Nginx traffic to new version
-5. Verify deployment
-6. Cleanup old version
-
-### CI/CD Pipeline
-
-This project includes a GitHub Actions workflow in `.github/workflows/ci-cd.yml` that:
-
-- Builds Docker images
-- Pushes to container registry
-- Deploys to remote server
-- Runs health checks
-- Performs blue/green switching
-
-**Note**: Requires SSH private key and registry credentials in GitHub repository secrets.
-
-## Testing
-
-```bash
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
 ## Learn More
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To learn more about Next.js, take a look at the [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
