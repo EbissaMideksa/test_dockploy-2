@@ -10,7 +10,6 @@ env:
   REGISTRY_IMAGE: ${{ github.repository }}
   APP_NAME: test_dockploy-2
   SERVER_IP: 10.117.66.20
-  SSH_USER: root
   PORT_BLUE: "3099"
   PORT_GREEN: "3098"
 
@@ -18,8 +17,6 @@ jobs:
   # ---------- CI: lint + build ----------
   test:
     runs-on: ubuntu-latest
-    outputs:
-      build_ok: "true"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -63,54 +60,48 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}
-          tags: |
-            type=sha,prefix=${{ github.sha }}-
-            type=ref,event=branch
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:latest
 
-      - name: Print image refs
+      - name: Print image tag
         run: |
-          echo "Pushed image tags: ${{ steps.meta.outputs.tags }}"
+          echo "Pushed: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:${{ github.sha }}"
 
   # ---------- Deploy to 10.117.66.20 (self-hosted runner on server) ----------
   deploy:
     needs: build-and-push
-    runs-on: self-hosted   # runner must be installed on 10.117.66.20
-    environment: production
+    runs-on: self-hosted
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Login to GHCR on self-hosted runner
+      - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-      - name: Pull latest image from GHCR
-        run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:${{ github.sha }}
+      - name: Pull image
+        run: docker pull ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:${{ github.sha }}
 
       - name: Detect active version
         id: detect
         run: |
           CURRENT="blue"
-          if grep -q "server app-green:3000;" nginx/nginx.conf 2>/dev/null; then
+          if docker ps --format '{{.Names}}' | grep -q "${{ env.APP_NAME }}-green"; then
             CURRENT="green"
           fi
           if [ "$CURRENT" = "blue" ]; then TARGET="green"; else TARGET="blue"; fi
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
           echo "target=$TARGET" >> $GITHUB_OUTPUT
           if [ "$TARGET" = "green" ]; then echo "port=${PORT_GREEN}"; else echo "port=${PORT_BLUE}"; fi >> $GITHUB_OUTPUT
+          echo "Detecting: current=$CURRENT target=$TARGET"
 
       - name: Deploy target version
         env:
@@ -126,16 +117,46 @@ jobs:
             -e NEXT_PUBLIC_APP_URL="http://${{ env.SERVER_IP }}:${TARGET_PORT}" \
             "$IMAGE"
 
-      - name: Wait and switch nginx
+      - name: Wait for target to be healthy
+        env:
+          TARGET_PORT: ${{ steps.detect.outputs.port }}
         run: |
-          sleep 3
-          TARGET="${{ steps.detect.outputs.target }}"
-          sed -i "s|server app-[a-z]*:3000;|server app-${TARGET}:3000;|g" nginx/nginx.conf
-          docker exec "${{ env.APP_NAME }}-nginx" nginx -s reload 2>/dev/null \
-            || docker restart "${{ env.APP_NAME }}-nginx"
+          echo "Waiting for target on port ${TARGET_PORT}..."
+          for i in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:${TARGET_PORT}/" > /dev/null 2>&1; then
+              echo "✅ Target is up on port ${TARGET_PORT}"
+              break
+            fi
+            sleep 2
+            if [ "$i" = "30" ]; then
+              echo "❌ Target failed to start on port ${TARGET_PORT}"
+              exit 1
+            fi
+          done
+
+      - name: Switch nginx to target
+        env:
+          TARGET_VERSION: ${{ steps.detect.outputs.target }}
+        run: |
+          # Update nginx config
+          sed -i "s|server app-[a-z]*:3000;|server app-${TARGET_VERSION}:3000;|g" nginx/nginx.conf
+          # Find nginx container and copy updated config
+          NGINX=$(docker ps --filter name=nginx --format '{{.Names}}' | head -1)
+          if [ -n "$NGINX" ]; then
+            docker cp nginx/nginx.conf "${NGINX}:/etc/nginx/nginx.conf"
+            docker exec "${NGINX}" nginx -s reload
+            echo "✅ Switched nginx to ${TARGET_VERSION} (container: ${NGINX})"
+          else
+            echo "⚠️  No nginx container found, starting nginx..."
+            docker run -d --name "${{ env.APP_NAME }}-nginx" \
+              -p 80:80 \
+              -v "${PWD}/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
+              nginx:stable-alpine
+          fi
 
       - name: Verify through nginx
         run: |
+          sleep 2
           if curl -sf "http://127.0.0.1:80/healthz" > /dev/null; then
             echo "✅ Deployment successful (nginx on :80)"
           else
@@ -144,10 +165,11 @@ jobs:
           fi
 
       - name: Stop old version
+        env:
+          CURRENT_VERSION: ${{ steps.detect.outputs.current }}
         run: |
-          CURRENT="${{ steps.detect.outputs.current }}"
-          docker rm -f "${{ env.APP_NAME }}-${CURRENT}" 2>/dev/null || true
-          echo "🧹 Removed old ${CURRENT} version"
+          docker rm -f "${{ env.APP_NAME }}-${CURRENT_VERSION}" 2>/dev/null || true
+          echo "🧹 Removed old ${CURRENT_VERSION} version"
 
   notify:
     if: always()
