@@ -16,6 +16,56 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Blue/Green Deployment
+
+This project supports blue/green deployment with Docker and Nginx.
+
+### Quick Deployment
+
+```bash
+./deploy-blue-green.sh
+```
+
+### Deployment Details
+
+- Blue Version: `http://10.117.66.20:3099`
+- Green Version: `http://10.117.66.20:3100`
+- Nginx Front-end: `http://10.117.66.20`
+
+### Blue/Green Flow
+
+1. Build Docker image
+2. Deploy to remote server (10.117.66.20)
+3. Start new version in background
+4. Switch Nginx traffic to new version
+5. Verify deployment
+6. Cleanup old version
+
+### CI/CD Pipeline
+
+This project includes a GitHub Actions workflow in `.github/workflows/ci-cd.yml` that:
+
+- Builds Docker images
+- Pushes to container registry
+- Deploys to remote server
+- Runs health checks
+- Performs blue/green switching
+
+**Note**: Requires SSH private key and registry credentials in GitHub repository secrets.
+
+## Testing
+
+```bash
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
