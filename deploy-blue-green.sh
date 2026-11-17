@@ -18,20 +18,24 @@ APP_DIR="/opt/${APP_NAME}"
 
 # Determine which version is currently active
 CURRENT_VERSION="blue"
-if curl -sf "http://${SERVER}:80/healthz" | grep -q "green"; then
-    CURRENT_VERSION="green"
+if curl -sf "http://${SERVER}:80/healthz" > /dev/null 2>&1; then
+    if grep -q "app-green:3000" "${APP_DIR}/nginx/nginx.conf" 2>/dev/null; then
+        CURRENT_VERSION="green"
+    fi
 fi
 
 # Determine target version (switch to the other)
 if [ "$CURRENT_VERSION" = "blue" ]; then
     TARGET_VERSION="green"
+    TARGET_PORT="${PORT_GREEN}"
 else
     TARGET_VERSION="blue"
+    TARGET_PORT="${PORT_BLUE}"
 fi
 
 echo "=== Blue/Green Deployment ==="
 echo "Current: ${CURRENT_VERSION}"
-echo "Target:  ${TARGET_VERSION}"
+echo "Target:  ${TARGET_VERSION} (port ${TARGET_PORT})"
 echo "Server:  ${SERVER}"
 echo "============================="
 
@@ -64,24 +68,21 @@ ssh ${SSH_USER}@${SERVER} "bash -c '
     
     # Start new version
     docker run -d --name ${APP_NAME}-${TARGET_VERSION} \\
-        -p ${PORT_${TARGET_VERSION}}:3000 \\
+        -p ${TARGET_PORT}:3000 \\
         -e NODE_ENV=production \\
         -e PORT=3000 \\
-        -e NEXT_PUBLIC_APP_URL=http://${SERVER}:${PORT_${TARGET_VERSION}} \\
+        -e NEXT_PUBLIC_APP_URL=http://${SERVER}:${TARGET_PORT} \\
         ${REGISTRY}/${APP_NAME}:${TARGET_VERSION}-latest
 '"
 
 # 5. Switch nginx traffic to new version
 echo "[5/6] Switching nginx to ${TARGET_VERSION}..."
 ssh ${SSH_USER}@${SERVER} "bash -c '
-    # Update nginx config to point to target version
-    sed -i \"s/proxy_pass http://blue;/proxy_pass http://${TARGET_VERSION};/g\" /opt/${APP_NAME}/nginx/nginx.conf
-    sed -i \"s/upstream blue {/upstream ${TARGET_VERSION} {/g\" /opt/${APP_NAME}/nginx/nginx.conf
-    sed -i \"s/server app-blue:3000;/server app-${TARGET_VERSION}:3000;/g\" /opt/${APP_NAME}/nginx/nginx.conf
+    # Update nginx upstream line
+    sed -i \"s|server app-[a-z]*:3000;|server app-${TARGET_VERSION}:3000;|g\" /opt/${APP_NAME}/nginx/nginx.conf
     
     # Reload nginx
-    docker kill -s HUP \$(cat /var/run/nginx.pid 2>/dev/null) 2>/dev/null || true
-    docker restart ${APP_NAME}-nginx 2>/dev/null || true
+    docker exec ${APP_NAME}-nginx nginx -s reload 2>/dev/null || docker restart ${APP_NAME}-nginx
 '"
 
 # 6. Verify deployment
@@ -97,6 +98,6 @@ fi
 
 # Cleanup old version
 echo "Cleaning up old ${CURRENT_VERSION} version..."
-ssh ${SSH_USER}@${SERVER} "bash -c 'docker stop ${APP_NAME}-${CURRENT_VERSION} 2>/dev/null || true; docker rm ${APP_NAME}-${CURRENT_VERSION} 2>/dev/null || true'"
+ssh ${SSH_USER}@${SERVER} "bash -c 'docker rm -f ${APP_NAME}-${CURRENT_VERSION} 2>/dev/null || true'"
 
 echo "=== Deployment complete ==="

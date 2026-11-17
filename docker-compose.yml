@@ -1,5 +1,5 @@
 services:
-  # BLUE version - currently serving production
+  # BLUE version - default production
   app-blue:
     build:
       context: .
