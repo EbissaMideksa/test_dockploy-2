@@ -4,7 +4,7 @@ set -euo pipefail
 # ============================================================
 # Blue/Green Deployment Script for test_dockploy-2
 # Server: 10.117.66.20
-# Blue: 3099 | Green: 3100
+# Blue: 3099 | Green: 3098
 # Nginx: 80
 # ============================================================
 
@@ -12,7 +12,7 @@ SERVER="10.117.66.20"
 SSH_USER="root"
 APP_NAME="test_dockploy-2"
 PORT_BLUE="3099"
-PORT_GREEN="3100"
+PORT_GREEN="3098"
 REGISTRY="localhost:5000"
 APP_DIR="/opt/${APP_NAME}"
 

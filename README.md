@@ -29,7 +29,7 @@ This project supports blue/green deployment with Docker and Nginx.
 ### Deployment Details
 
 - Blue Version: `http://10.117.66.20:3099`
-- Green Version: `http://10.117.66.20:3100`
+- Green Version: `http://10.117.66.20:3098`
 - Nginx Front-end: `http://10.117.66.20`
 
 ### Blue/Green Flow

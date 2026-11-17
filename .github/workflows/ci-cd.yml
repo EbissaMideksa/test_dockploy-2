@@ -12,7 +12,7 @@ env:
   SERVER_IP: 10.117.66.20
   SSH_USER: root
   PORT_BLUE: "3099"
-  PORT_GREEN: "3100"
+  PORT_GREEN: "3098"
 
 jobs:
   # ---------- CI: lint + build ----------
