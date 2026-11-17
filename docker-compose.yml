@@ -20,7 +20,7 @@ services:
     volumes:
       - app_uploads:/usr/share/nginx/html/uploads:ro
     ports:
-      - "3002:80"
+      - "3200:80"
 
 volumes:
   app_uploads:
